@@ -4,6 +4,43 @@ Share one keyboard and mouse across **macOS and Windows** over your local networ
 
 跨屏键鼠共享：在局域网内共享一套键鼠控制 macOS 与 Windows，跨设备复制粘贴文本与文件，锁屏状态下也能从别的设备输入 Windows 密码。
 
+[![CI](https://github.com/ques666/CrossScreen/actions/workflows/build.yml/badge.svg)](https://github.com/ques666/CrossScreen/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/ques666/CrossScreen)](https://github.com/ques666/CrossScreen/releases)
+[![License](https://img.shields.io/github/license/ques666/CrossScreen)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
+![macOS](https://img.shields.io/badge/macOS-12%2B-black?logo=apple&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-amd64-0078D6?logo=windows&logoColor=white)
+
+---
+
+## Screenshots / 截图
+
+浏览器控制台：管理节点启停、设备与屏幕排列、文件传输与锁屏输入服务。
+
+![CrossScreen 控制台](docs/screenshots/crossscreen-panel.png)
+
+---
+
+## Installation / 安装
+
+从 [Releases](https://github.com/ques666/CrossScreen/releases) 下载对应平台的安装包：
+
+| 平台 | 文件 | 说明 |
+|---|---|---|
+| macOS | `CrossScreen-macos-universal.zip` | 通用二进制（Apple Silicon + Intel），最低 macOS 12，已签名 |
+| Windows | `CrossScreen-windows-amd64.exe` | amd64，免安装，直接运行 |
+
+### macOS
+
+1. 下载 `CrossScreen-macos-universal.zip`，解压后把 `CrossScreen.app` 拖入「应用程序」。
+2. 双击运行（首次启动会自动打开浏览器控制台）。
+3. 在 **系统设置 → 隐私与安全性** 中授予 **输入监控** 与 **辅助功能** 权限（否则无法捕获/注入键鼠）。
+
+### Windows
+
+1. 下载 `CrossScreen-windows-amd64.exe`，双击运行，浏览器会自动打开控制台（`http://127.0.0.1:8080`）。
+2. 如需在 **锁屏界面** 输入密码，在控制台的「锁屏控制服务」中点击 **安装服务** 即可。
+
 ---
 
 ## Features
