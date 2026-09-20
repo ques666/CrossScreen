@@ -1,0 +1,23 @@
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# ---- Build output ----
+/dist/
+/crossscreen.exe
+*.app
+
+# ---- Local dev binaries ----
+/demo
+/inject-demo
+
+# ---- Go ----
+*.test
+*.out
+coverage.*
+
+# ---- Config written at runtime ----
+settings.json

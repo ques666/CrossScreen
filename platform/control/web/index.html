@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>跨屏助手 · CrossScreen</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <img class="logo" src="/favicon.png" width="26" height="26" alt="CrossScreen">
+      <div>
+        <h1>跨屏助手</h1>
+        <p class="sub">CrossScreen · 键鼠跨屏共享</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="pill" id="rolePill">未连接</span>
+      <span class="pill muted" id="capPill">捕获未启用</span>
+      <span class="pill muted" id="verPill">v0.4.0</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <section class="card">
+        <h2>连接</h2>
+        <div class="field">
+          <label for="name">设备名</label>
+          <input id="name" type="text" placeholder="mac-studio">
+        </div>
+        <div class="seg" id="roleSeg">
+          <button data-role="server" class="active">服务器</button>
+          <button data-role="client">客户端</button>
+        </div>
+        <div id="serverFields" class="fields">
+          <div class="field">
+            <label for="srvAddr">监听地址</label>
+            <input id="srvAddr" type="text" value="0.0.0.0:53317">
+          </div>
+          <button id="btnStart" class="primary">启动服务器</button>
+        </div>
+        <div id="clientFields" class="fields hidden">
+          <div class="field">
+            <label for="cliAddr">服务器地址</label>
+            <input id="cliAddr" type="text" placeholder="192.168.1.5:53317">
+          </div>
+          <button id="btnConnect" class="primary">连接服务器</button>
+        </div>
+        <button id="btnStop" class="danger hidden">停止节点</button>
+        <button id="btnSave" class="ghost btn-save">保存配置</button>
+        <p id="nodeInfo" class="hint"></p>
+        <p id="cfgMsg" class="hint cfg-msg"></p>
+        <div class="field svc-field" id="svcField" hidden>
+          <label>锁屏控制服务</label>
+          <div class="svc-row">
+            <span id="svcState" class="hint">检测中…</span>
+            <button id="btnSvcInstall" class="primary" hidden>安装服务</button>
+            <button id="btnSvcUninstall" class="ghost" hidden>卸载</button>
+          </div>
+          <p class="hint">安装后，锁屏界面也能用跨屏键盘输入密码（Ctrl+Alt+Del 除外）</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>设备</h2>
+        <div id="devices" class="devices"><p class="hint">暂无设备</p></div>
+      </section>
+
+      <section class="card" id="transfersCard" hidden>
+        <h2>文件传输</h2>
+        <div id="transfers" class="transfers"></div>
+      </section>
+
+      <section class="card">
+        <h2>提示</h2>
+        <ul class="tips">
+          <li>macOS 需授予<b>输入监控</b>与<b>辅助功能</b>权限</li>
+          <li>拖动右侧<b>对端屏幕</b>调整排列，本机屏幕固定</li>
+          <li>对端屏幕边缘即为跨屏边界</li>
+          <li>在一台设备复制文件，另一台直接粘贴即可（超过 50MB 会询问）</li>
+        </ul>
+      </section>
+    </aside>
+
+    <section class="canvas-wrap">
+      <div class="canvas-head">
+        <h2>屏幕排列</h2>
+        <div class="canvas-actions">
+          <button id="btnReset" class="ghost">重置自动布局</button>
+          <span id="activeInfo" class="hint"></span>
+        </div>
+      </div>
+      <div id="canvas" class="canvas">
+        <p class="canvas-empty">启动服务器或连接后显示屏幕排列</p>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
