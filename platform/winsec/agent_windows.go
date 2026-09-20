@@ -10,7 +10,6 @@ package winsec
 import (
 	"errors"
 	"io"
-	"log"
 	"os"
 	"runtime"
 	"sync"
@@ -54,7 +53,6 @@ func RunAgent(stop <-chan struct{}) error {
 			appendAgentLog("agent: NewPipeListener: %v", err)
 			return err
 		}
-		appendAgentLog("agent: pipe listening")
 		connCh := make(chan *os.File, 1)
 		errCh := make(chan error, 1)
 		go func() {
@@ -77,15 +75,12 @@ func RunAgent(stop <-chan struct{}) error {
 			if errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
-			log.Printf("winsec agent: accept: %v", err)
 			appendAgentLog("agent: accept: %v", err)
 			time.Sleep(time.Second)
 		case conn := <-connCh:
-			appendAgentLog("agent: client connected")
 			serveAgentConn(conn, injectCh, stop)
 			conn.Close()
 			ln.Close()
-			appendAgentLog("agent: client disconnected")
 			// Drain anything queued from the dropped connection before the
 			// app reconnects.
 			drainInject(injectCh)
@@ -139,39 +134,15 @@ func injectWorker(inj inject.Injector, in <-chan Msg, stop <-chan struct{}) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	if dn := currentDesktopName(); dn != "" {
-		appendAgentLog("agent: thread desktop %q", dn)
-	}
-
-	// Input-desktop switches (lock/unlock) are logged for diagnostics only;
-	// the worker never re-targets its own desktop.
-	recheck := time.NewTicker(5 * time.Second)
-	defer recheck.Stop()
-	lastInput := ""
-	reportInput := func() {
-		name, err := inputDesktopName(desktopReadObjects)
-		if err != nil {
-			return
-		}
-		if name != lastInput {
-			lastInput = name
-			appendAgentLog("agent: input desktop now %q", name)
-		}
-	}
-
-	reportInput()
 	for {
 		select {
 		case <-stop:
 			return
-		case <-recheck.C:
-			reportInput()
 		case m, ok := <-in:
 			if !ok {
 				return
 			}
 			if err := applyMsg(inj, m); err != nil {
-				log.Printf("winsec agent: inject %s: %v", m.T, err)
 				appendAgentLog("agent: inject %s: %v", m.T, err)
 			}
 		}

@@ -29,8 +29,13 @@ var (
 )
 
 const (
-	whMouseLL     = 14
-	whKeyboardLL  = 13
+	whMouseLL    = 14
+	whKeyboardLL = 13
+	// The injected-event flag differs per hook type: LLMHF_INJECTED (mouse
+	// flags) is 0x01 while LLKHF_INJECTED (keyboard flags) is 0x10. Sharing
+	// the keyboard value for mouse events meant our own injected input was
+	// not filtered, so it could be captured and forwarded again.
+	llmhfInjected = 0x01
 	llkhfInjected = 0x10
 
 	wmQuit        = 0x0012
@@ -203,7 +208,7 @@ func (c *windowsCapture) mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 		return callNextHook(nCode, wParam, lParam)
 	}
 	info := (*msllhookstruct)(unsafe.Pointer(lParam))
-	if info.flags&llkhfInjected != 0 {
+	if info.flags&llmhfInjected != 0 {
 		return callNextHook(nCode, wParam, lParam)
 	}
 

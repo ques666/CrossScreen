@@ -19,7 +19,6 @@ import (
 
 // NewProxyInjector wraps the platform injector with secure-desktop routing.
 func NewProxyInjector() (inject.Injector, error) {
-	appendAgentLog("panel: proxy injector created pid=%d", os.Getpid())
 	inner, err := inject.New()
 	if err != nil {
 		return nil, err
@@ -43,9 +42,8 @@ type proxyInjector struct {
 	// lock/unlock, so querying it once per desktopCheckInterval avoids a
 	// syscall storm on every high-frequency input event. Atomics keep the
 	// per-event path lock-free.
-	secure     atomic.Int32 // 0 = normal desktop, 1 = secure desktop
-	checkedAt  atomic.Int64 // unix nanos of last query
-	lastRouted atomic.Int32 // last logged routing decision (1 = via agent)
+	secure    atomic.Int32 // 0 = normal desktop, 1 = secure desktop
+	checkedAt atomic.Int64 // unix nanos of last query
 
 	// retryAt is the earliest time a fresh pipe dial may be attempted after
 	// a failure. Without this, a locked machine with the service not running
@@ -77,13 +75,8 @@ func (p *proxyInjector) routed() bool {
 		// processes, so this query typically fails exactly when we most need
 		// the pipe (machine locked). Treat an unreadable desktop as "locked":
 		// try the agent pipe first, and fall back to direct injection only if
-		// the service/agent is not running. Log once per transition into this
-		// state, not on every 300ms re-check.
-		if p.lastRouted.Load() != 1 {
-			appendAgentLog("panel: desktop name query failed, routing via agent pipe: %v", err)
-		}
+		// the service/agent is not running.
 		p.secure.Store(1)
-		p.lastRouted.Store(1)
 		return true
 	}
 	secure := name != defaultDesktopName
@@ -91,10 +84,6 @@ func (p *proxyInjector) routed() bool {
 		p.secure.Store(1)
 	} else {
 		p.secure.Store(0)
-	}
-	if p.secure.Load() != p.lastRouted.Load() {
-		appendAgentLog("panel: secure desktop routing=%v (desktop %q)", secure, name)
-		p.lastRouted.Store(p.secure.Load())
 	}
 	return secure
 }
@@ -110,11 +99,9 @@ func (p *proxyInjector) pipe() *os.File {
 	}
 	c, err := DialPipe(pipeDialTimeout)
 	if err != nil {
-		appendAgentLog("panel: pipe dial failed: %v", err)
 		p.retryAt = time.Now().Add(pipeRetryBackoff)
 		return nil
 	}
-	appendAgentLog("panel: pipe connected")
 	p.retryAt = time.Time{}
 	p.conn = c
 	return c

@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -139,11 +138,9 @@ func runSupervisor(ctx context.Context) {
 		if hProc == 0 {
 			h, err := spawnAgentInSession(sid)
 			if err != nil {
-				log.Printf("winsec svc: spawn agent in session %d: %v", sid, err)
 				appendAgentLog("svc: spawn agent in session %d: %v", sid, err)
 			} else {
 				hProc = h
-				log.Printf("winsec svc: agent started in session %d", sid)
 				appendAgentLog("svc: agent started in session %d", sid)
 			}
 		}

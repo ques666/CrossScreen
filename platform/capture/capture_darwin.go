@@ -149,8 +149,28 @@ static CGEventRef cs_tap_cb(CGEventTapProxy proxy, CGEventType type, CGEventRef 
 	case kCGEventOtherMouseUp:    e.typ = 2; e.code = 3; break;
 	case kCGEventScrollWheel:
 		e.typ = 3;
-		e.d1 = CGEventGetIntegerValueField(ev, kCGScrollWheelEventDeltaAxis1);
-		e.d2 = CGEventGetIntegerValueField(ev, kCGScrollWheelEventDeltaAxis2);
+		// Trackpads / Magic Mouse deliver PIXEL deltas in the point fields
+		// (and 0 in the axis fields); discrete mouse wheels deliver LINE
+		// deltas in the axis fields. Mark continuous sources (e.down=1) so
+		// the Go side accumulates pixels into whole lines.
+		if (CGEventGetIntegerValueField(ev, kCGScrollWheelEventIsContinuous) != 0) {
+			double d1 = CGEventGetIntegerValueField(ev, kCGScrollWheelEventPointDeltaAxis1);
+			double d2 = CGEventGetIntegerValueField(ev, kCGScrollWheelEventPointDeltaAxis2);
+			// Damp the momentum tail (fingers lifted, OS keeps scrolling) so
+			// a flick does not turn into a long runaway scroll on the peer.
+			// Field 123 = kCGScrollWheelEventMomentumPhase; nonzero during the
+			// glide phase. Falls back to 0 (no damping) if unsupported.
+			if (CGEventGetIntegerValueField(ev, 123) != 0) {
+				d1 *= 0.5;
+				d2 *= 0.5;
+			}
+			e.d1 = d1;
+			e.d2 = d2;
+			e.down = 1;
+		} else {
+			e.d1 = CGEventGetIntegerValueField(ev, kCGScrollWheelEventDeltaAxis1);
+			e.d2 = CGEventGetIntegerValueField(ev, kCGScrollWheelEventDeltaAxis2);
+		}
 		break;
 	case kCGEventKeyDown:
 		e.typ = 4;
@@ -239,6 +259,67 @@ type darwinCapture struct {
 	stop chan struct{}
 	once sync.Once
 	wg   sync.WaitGroup
+
+	// scroll adapts wheel input to the peer automatically:
+	//   - discrete wheels emit one unit per PHYSICAL detent (the tiny events
+	//     of one detent are clustered into a single unit), so one notch on
+	//     this machine equals one notch on the peer's own system settings;
+	//   - trackpads are continuous, so their pixel deltas are converted to
+	//     line units and emitted smoothly at a near-frame rate.
+	// No user configuration is involved — the receiving machine's own
+	// "lines per wheel notch" setting decides how far one unit scrolls.
+	scroll scrollState
+}
+
+// scrollLinePx converts trackpad pixel deltas to line units. A modest
+// two-finger swipe (a few hundred px) becomes a few lines.
+const scrollLinePx = 200.0
+
+// scrollTrackpadInterval is the emission floor for continuous sources.
+const scrollTrackpadInterval = 16 * time.Millisecond
+
+// scrollClusterWindow groups the micro-events of ONE physical wheel detent.
+// High-resolution wheels report a single detent as several events a few
+// tens of ms apart (e.g. three events of 1,1,2 within ~80 ms). Events that
+// arrive within this window with the same direction belong to the same
+// detent and are emitted as ONE unit, so a notch never becomes several
+// notches on the peer.
+const scrollClusterWindow = 120 * time.Millisecond
+
+// scrollState normalizes raw wheel/trackpad input into wire units.
+type scrollState struct {
+	// Trackpad accumulator (continuous sources).
+	accX, accY float64
+	lastEmit   time.Time
+
+	// Wheel detent clustering (discrete sources). dirX/dirY hold the
+	// direction of the detent currently being collected (0 = none), last
+	// is when its last micro-event arrived.
+	dirX, dirY int
+	last       time.Time
+}
+
+func signOf(v float64) int {
+	switch {
+	case v > 0:
+		return 1
+	case v < 0:
+		return -1
+	}
+	return 0
+}
+
+// flushDetent emits one unit for the detent currently being collected, if
+// any. It is called when a new, different detent starts or when the cluster
+// window expires.
+func (s *scrollState) flushDetent(h Handler) {
+	if s.dirY == 0 && s.dirX == 0 {
+		return
+	}
+	if h.OnScroll != nil {
+		h.OnScroll(event.PointerScroll{DX: int32(s.dirX), DY: int32(s.dirY)})
+	}
+	s.dirX, s.dirY = 0, 0
 }
 
 func newCapture() (Capture, error) {
@@ -290,6 +371,13 @@ func (c *darwinCapture) drain(h Handler) {
 		// movement becomes a single callback instead of N wakeups.
 		n := int(C.cs_drain_batch(&buf[0], C.int(len(buf)), 8))
 		if n == 0 {
+			// Flush a wheel detent whose cluster window expired, so the last
+			// notch of a gesture is still delivered (with no latency for the
+			// ones that follow).
+			if (c.scroll.dirY != 0 || c.scroll.dirX != 0) &&
+				time.Since(c.scroll.last) >= scrollClusterWindow {
+				c.scroll.flushDetent(h)
+			}
 			continue
 		}
 		var (
@@ -306,7 +394,7 @@ func (c *darwinCapture) drain(h Handler) {
 				moves++
 				continue
 			}
-			dispatchDarwin(h, ev, mods)
+			c.dispatch(h, ev, mods)
 		}
 		if moves > 0 && h.OnMove != nil {
 			h.OnMove(int32(lastX), int32(lastY), int32(sumDX), int32(sumDY))
@@ -364,7 +452,8 @@ func (c *darwinCapture) Position() (int32, int32, error) {
 	return int32(x), int32(y), nil
 }
 
-func dispatchDarwin(h Handler, ev *C.struct_cs_ev, mods map[uint16]bool) {
+func (c *darwinCapture) dispatch(h Handler, ev *C.struct_cs_ev, mods map[uint16]bool) {
+	s := &c.scroll
 	switch ev.typ {
 	case 1: // move
 		if h.OnMove != nil {
@@ -386,9 +475,52 @@ func dispatchDarwin(h Handler, ev *C.struct_cs_ev, mods map[uint16]bool) {
 			h.OnButton(event.PointerButton{Button: b, Down: ev.down != 0})
 		}
 	case 3: // scroll
-		if h.OnScroll != nil {
-			h.OnScroll(event.PointerScroll{DX: int32(ev.d2), DY: int32(ev.d1)})
+		if h.OnScroll == nil {
+			return
 		}
+		now := time.Now()
+		if ev.down != 0 {
+			// Continuous trackpad: convert pixel deltas to line units and
+			// emit smoothly. The peer injects each unit as one wheel notch
+			// worth of input, interpreted by its own system settings.
+			s.accX += float64(ev.d2) / scrollLinePx
+			s.accY += float64(ev.d1) / scrollLinePx
+			if now.Sub(s.lastEmit) < scrollTrackpadInterval {
+				return
+			}
+			dx := int32(s.accX)
+			dy := int32(s.accY)
+			if dx == 0 && dy == 0 {
+				return
+			}
+			s.accX -= float64(dx)
+			s.accY -= float64(dy)
+			s.lastEmit = now
+			h.OnScroll(event.PointerScroll{DX: dx, DY: dy})
+			return
+		}
+
+		// Discrete wheel: cluster the micro-events of one physical detent
+		// into ONE unit, so a single notch on this machine is one notch on
+		// the peer (whose own "lines per notch" decides the distance).
+		sy, sx := signOf(float64(ev.d1)), signOf(float64(ev.d2))
+		if s.dirY != 0 || s.dirX != 0 {
+			sameDetent := now.Sub(s.last) < scrollClusterWindow &&
+				(sy == 0 || s.dirY == 0 || sy == s.dirY) &&
+				(sx == 0 || s.dirX == 0 || sx == s.dirX)
+			if sameDetent {
+				s.last = now // still collecting the same detent
+				return
+			}
+			s.flushDetent(h) // previous detent ended: emit it as one unit
+		}
+		if sy != 0 {
+			s.dirY = sy
+		}
+		if sx != 0 {
+			s.dirX = sx
+		}
+		s.last = now
 	case 4: // key
 		if h.OnKey != nil {
 			if k, ok := keymap.KeyFromMac(uint16(ev.code)); ok {

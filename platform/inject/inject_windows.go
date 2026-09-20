@@ -155,9 +155,13 @@ func (w *windowsInjector) Button(b event.MouseButton, down bool) error {
 	return sendInput(inp)
 }
 
-// wheelData encodes a signed wheel delta in the high WORD of mouseData.
+// wheelData encodes the wheel delta for SendInput. MOUSEINPUT.mouseData
+// carries the full signed 32-bit amount (120 per notch) — unlike the
+// low-level hook / WM_MOUSEWHEEL path where the delta lives in the HIGH
+// word. Shifting the value here (as one must when decoding a hook event)
+// multiplied the delta by 65536, making one notch scroll entire pages.
 func wheelData(lines int32) uint32 {
-	return uint32(uint16(int16(lines * wheelDelta)))
+	return uint32(int32(lines * wheelDelta))
 }
 
 func (w *windowsInjector) Scroll(dx, dy int32) error {

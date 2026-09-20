@@ -134,6 +134,11 @@ const (
 	KeyRightGUI   Key = 0xE7
 )
 
+// noCode marks a key that has no native code on a platform. It must not be
+// zero: macOS virtual keycode 0x00 is the 'A' key, so using 0 as the sentinel
+// silently dropped 'A' (and every shortcut built on it, e.g. Cmd+A).
+const noCode = 0xFFFF
+
 // keyDef is the single source of truth for every supported key: its neutral
 // code, its name (used by KeyByName and demos), and its native codes.
 type keyDef struct {
@@ -180,17 +185,17 @@ var keys = []keyDef{
 	{"Left", KeyLeft, 0x7B, 0x25}, {"Right", KeyRight, 0x7C, 0x27},
 	{"Down", KeyDown, 0x7D, 0x28}, {"Up", KeyUp, 0x7E, 0x26},
 
-	{"PrintScreen", KeyPrintScreen, 0, 0x2C}, {"ScrollLock", KeyScrollLock, 0, 0x91},
-	{"Pause", KeyPause, 0, 0x13}, {"NumLock", KeyNumLock, 0, 0x90},
+	{"PrintScreen", KeyPrintScreen, noCode, 0x2C}, {"ScrollLock", KeyScrollLock, noCode, 0x91},
+	{"Pause", KeyPause, noCode, 0x13}, {"NumLock", KeyNumLock, noCode, 0x90},
 
-	{"KeypadSlash", KeypadSlash, 0, 0x6F}, {"KeypadAsterisk", KeypadAsterisk, 0, 0x6A},
-	{"KeypadMinus", KeypadMinus, 0, 0x6D}, {"KeypadPlus", KeypadPlus, 0, 0x6B},
-	{"KeypadEnter", KeypadEnter, 0x4C, 0x0D}, {"Keypad0", Keypad0, 0, 0x60},
-	{"Keypad1", Keypad1, 0, 0x61}, {"Keypad2", Keypad2, 0, 0x62},
-	{"Keypad3", Keypad3, 0, 0x63}, {"Keypad4", Keypad4, 0, 0x64},
-	{"Keypad5", Keypad5, 0, 0x65}, {"Keypad6", Keypad6, 0, 0x66},
-	{"Keypad7", Keypad7, 0, 0x67}, {"Keypad8", Keypad8, 0, 0x68},
-	{"Keypad9", Keypad9, 0, 0x69}, {"KeypadDecimal", KeypadDecimal, 0, 0x6E},
+	{"KeypadSlash", KeypadSlash, noCode, 0x6F}, {"KeypadAsterisk", KeypadAsterisk, noCode, 0x6A},
+	{"KeypadMinus", KeypadMinus, noCode, 0x6D}, {"KeypadPlus", KeypadPlus, noCode, 0x6B},
+	{"KeypadEnter", KeypadEnter, 0x4C, 0x0D}, {"Keypad0", Keypad0, noCode, 0x60},
+	{"Keypad1", Keypad1, noCode, 0x61}, {"Keypad2", Keypad2, noCode, 0x62},
+	{"Keypad3", Keypad3, noCode, 0x63}, {"Keypad4", Keypad4, noCode, 0x64},
+	{"Keypad5", Keypad5, noCode, 0x65}, {"Keypad6", Keypad6, noCode, 0x66},
+	{"Keypad7", Keypad7, noCode, 0x67}, {"Keypad8", Keypad8, noCode, 0x68},
+	{"Keypad9", Keypad9, noCode, 0x69}, {"KeypadDecimal", KeypadDecimal, noCode, 0x6E},
 }
 
 var (
@@ -209,7 +214,7 @@ func init() {
 	keyNames = make(map[string]Key, len(keys))
 	for _, d := range keys {
 		keyNames[d.name] = d.k
-		if d.mac != 0 {
+		if d.mac != noCode {
 			if _, exists := macKey[d.k]; !exists {
 				macKey[d.k] = d.mac
 			}
@@ -219,7 +224,7 @@ func init() {
 				macToKey[d.mac] = d.k
 			}
 		}
-		if d.win != 0 {
+		if d.win != noCode {
 			if _, exists := winKey[d.k]; !exists {
 				winKey[d.k] = d.win
 			}

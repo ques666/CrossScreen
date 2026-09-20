@@ -28,7 +28,7 @@ func TestKeyByName(t *testing.T) {
 // that same code too.
 func TestNativeRoundTrip(t *testing.T) {
 	for _, d := range keys {
-		if d.mac != 0 {
+		if d.mac != noCode {
 			c, ok := MacKeyCode(d.k)
 			if !ok || c != d.mac {
 				t.Errorf("MacKeyCode(%v): got %#x (ok=%v), want %#x", d.k, c, ok, d.mac)
@@ -39,7 +39,7 @@ func TestNativeRoundTrip(t *testing.T) {
 				}
 			}
 		}
-		if d.win != 0 {
+		if d.win != noCode {
 			c, ok := WindowsVK(d.k)
 			if !ok || c != d.win {
 				t.Errorf("WindowsVK(%v): got %#x (ok=%v), want %#x", d.k, c, ok, d.win)
@@ -50,6 +50,27 @@ func TestNativeRoundTrip(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestMacZeroKeycodeIsA guards the macOS 'A' key: its virtual keycode is
+// 0x00, which used to collide with the "no native code" sentinel and made the
+// key — and shortcuts like Cmd+A — silently dead when forwarding to Windows.
+func TestMacZeroKeycodeIsA(t *testing.T) {
+	k, ok := KeyFromMac(0x00)
+	if !ok || k != KeyA {
+		t.Fatalf("KeyFromMac(0x00): got %v (ok=%v), want KeyA", k, ok)
+	}
+	vk, ok := WindowsVK(k)
+	if !ok || vk != 0x41 {
+		t.Fatalf("WindowsVK(A): got %#x (ok=%v), want 0x41", vk, ok)
+	}
+	if code, ok := MacKeyCode(KeyA); !ok || code != 0x00 {
+		t.Fatalf("MacKeyCode(A): got %#x (ok=%v), want 0x00", code, ok)
+	}
+	// A Windows-only key must not claim the macOS 0x00 code.
+	if _, ok := KeyFromMac(0xFFFF); ok {
+		t.Error("KeyFromMac(0xFFFF) should not resolve (sentinel leaked into the map)")
 	}
 }
 
