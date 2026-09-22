@@ -127,6 +127,12 @@ static CGEventRef cs_tap_cb(CGEventTapProxy proxy, CGEventType type, CGEventRef 
 	if (cs_source_pid(ev) == (int64_t)getpid()) {
 		return ev;
 	}
+	// Input injected by another process (remote control, automation) is not
+	// ours to forward: it is meant for this machine. Pass it through
+	// untouched and never route it to the peer or suppress it.
+	if (cs_source_pid(ev) != 0) {
+		return ev;
+	}
 	struct cs_ev e;
 	memset(&e, 0, sizeof(e));
 	CGPoint p = CGEventGetLocation(ev);
@@ -191,10 +197,12 @@ static CGEventRef cs_tap_cb(CGEventTapProxy proxy, CGEventType type, CGEventRef 
 	}
 	cs_push(&e);
 	// While the shared cursor is on a peer, swallow the event so it is routed
-	// over the network only. Cursor bounce-back runs on the Go drain
-	// goroutine instead of this thread (warps here would stall event
-	// dispatch and make input feel laggy).
-	if (g_suppress) {
+	// over the network only. Only PHYSICAL input (source PID 0) is suppressed:
+	// input injected by other processes (remote control, automation) passes
+	// through untouched, so suppression and remote control never fight.
+	// Cursor bounce-back runs on the Go drain goroutine instead of this
+	// thread (warps here would stall event dispatch and make input feel laggy).
+	if (g_suppress && cs_source_pid(ev) == 0) {
 		return NULL;
 	}
 	return ev;

@@ -208,11 +208,12 @@ func (c *windowsCapture) mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 		return callNextHook(nCode, wParam, lParam)
 	}
 	info := (*msllhookstruct)(unsafe.Pointer(lParam))
+	relative := c.relative.Load() == 1
 	if info.flags&llmhfInjected != 0 {
+		// Input injected by another process (remote control, automation) is
+		// never suppressed: it always reaches the system untouched.
 		return callNextHook(nCode, wParam, lParam)
 	}
-
-	relative := c.relative.Load() == 1
 
 	switch wParam {
 	case wmMouseMove:
@@ -257,10 +258,11 @@ func (c *windowsCapture) keyProc(nCode int, wParam, lParam uintptr) uintptr {
 		return callNextHook(nCode, wParam, lParam)
 	}
 	info := (*kbdllhookstruct)(unsafe.Pointer(lParam))
+	relative := c.relative.Load() == 1
 	if info.flags&llkhfInjected != 0 {
+		// Never suppress injected input from other processes.
 		return callNextHook(nCode, wParam, lParam)
 	}
-	relative := c.relative.Load() == 1
 	switch wParam {
 	case wmKeyDown, wmKeyUp, wmSysKeyDown, wmSysKeyUp:
 		c.enqueue(queuedEvent{
@@ -275,6 +277,7 @@ func (c *windowsCapture) keyProc(nCode int, wParam, lParam uintptr) uintptr {
 	return callNextHook(nCode, wParam, lParam)
 }
 
+// signalMove wakes the dispatcher for aggregated movement.
 func (c *windowsCapture) signalMove() {
 	select {
 	case c.moveSig <- struct{}{}:

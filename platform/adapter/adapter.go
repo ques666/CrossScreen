@@ -457,6 +457,7 @@ func (d *Server) onMove(x, y, dx, dy int32) {
 		}
 		if err := d.srv.OnLocalDeltaMove(dx, dy); err != nil {
 			log.Printf("adapter: forward move: %v", err)
+			d.forceRelease()
 			return
 		}
 		if !d.srv.Router().OnPeer() {
@@ -564,19 +565,55 @@ func (d *Server) resync() {
 func (d *Server) onButton(b event.PointerButton) {
 	if err := d.srv.OnLocalButton(b); err != nil {
 		log.Printf("adapter: forward button: %v", err)
+		d.forceRelease()
 	}
 }
 
 func (d *Server) onScroll(s event.PointerScroll) {
 	if err := d.srv.OnLocalScroll(s); err != nil {
 		log.Printf("adapter: forward scroll: %v", err)
+		d.forceRelease()
 	}
 }
 
 func (d *Server) onKey(k keymap.Key, down bool) {
 	if err := d.srv.OnLocalKey(event.KeyEvent{KeyCode: k, Down: down}); err != nil {
 		log.Printf("adapter: forward key: %v", err)
+		d.forceRelease()
 	}
+}
+
+// forceRelease exits relative mode and returns the cursor to the primary
+// local screen. Called when forwarding to the peer fails — a network blip can
+// leave the peer reachable enough to not disconnect (so releaseIfActiveGone
+// never fires) while every input event still fails to send. Without this the
+// local keyboard/mouse would stay suppressed with no way to get control back.
+func (d *Server) forceRelease() {
+	if !d.isRelative() {
+		return
+	}
+	debugf("peer unreachable; releasing relative mode")
+	d.setRelative(false)
+	if primary := d.primaryScreen(); primary != nil {
+		cx, cy := primary.X+primary.Width/2, primary.Y+primary.Height/2
+		d.srv.Router().SetPosition(cx, cy)
+		_ = d.inj.MovePointer(cx, cy)
+	}
+}
+
+// primaryScreen returns the first primary local screen, or the first one if
+// none is marked primary.
+func (d *Server) primaryScreen() *layout.Screen {
+	var primary *layout.Screen
+	for _, s := range d.localScreens {
+		if s.Primary {
+			return s
+		}
+		if primary == nil {
+			primary = s
+		}
+	}
+	return primary
 }
 
 // Client runs a session client node.

@@ -18,6 +18,11 @@ type Handler struct {
 	OnButton func(b event.PointerButton)
 	OnScroll func(s event.PointerScroll)
 	OnKey    func(k keymap.Key, down bool)
+	// Suppression (relative mode) only ever affects the physical keyboard &
+	// mouse: input injected by other processes (remote-control tools like
+	// ToDesk) always passes through untouched, on every platform. There is
+	// deliberately no callback for "external input" — it is simply never
+	// suppressed, so suppression and remote control never fight each other.
 }
 
 // Capture captures local input. Start installs the listener; Stop removes it.
